@@ -114,6 +114,30 @@ td{
     animation-delay: -0.16s;
 }
 
+.game-started .user-name {
+    pointer-events: none;
+    border: none;
+    outline: none;
+}
+
+.tic, .tac {
+    pointer-events: none;
+}
+
+.tic::after {
+    display: inline;
+    content: 'X';
+}
+
+.tac::after {
+    display: inline;
+    content: 'O';
+}
+
+.waiting table {
+    opacity: 0.3;
+}
+
 @-webkit-keyframes sk-bouncedelay {
              0%, 80%, 100% { -webkit-transform: scale(0) }
              40% { -webkit-transform: scale(1.0) }

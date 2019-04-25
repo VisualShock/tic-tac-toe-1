@@ -1,213 +1,133 @@
-window.addEventListener("load",Init);
+let $container = document.getElementById('container');
+let $btnStart = document.querySelector('[data-component = "btnStart"]');
+let $nameInp = document.querySelector('[data-component = "name"]');
+let $cells = document.querySelectorAll('[data-component="cell"]');
+let $message = document.querySelector('[data-component = "showTurn"]');
 
-const GAME = {
-    name : "",
-    id : 0,
-    headers: new Headers(),
-    website: "https://ttt-practice.azurewebsites.net",
-    canMove:false
+let payload = {
+    id: '',
+    name: ''
 };
 
-function Init() {
-    let $radio = document.querySelectorAll('[data-component = "radioChoice"');
-    let $nameBtn = document.querySelector('[data-component = "btnSubmit"');
-    let $btnStart = document.querySelector('[data-component = "btnStart"]');
-    GAME.headers.append('Content-Type', 'application/json');
+const GAME = {
+    website: "https://ttt-practice.azurewebsites.net"                       // Если посмотреть на то, что тут написано
+};                                                                          // и вспомнить ту пирамидку, которую я рисовал на доске, то получится такая картина:
+                                                                            //                 ---------
+$cells = [].slice.apply($cells);                                            //                 |        | entry point - это сам скрипт, я избавился от init
+$cells.forEach($cell => {                                                   //               --------------
+    $cell.addEventListener('click', onCellClick);                           //               |            | начальная инициализация - это все querySelectors, и навешивание обработчиков
+});                                                                         //             ------------------
+                                                                            //             |                |  тут уже непосредсвенно реализация обработчиков - onButtonStart, onCellClick
+$btnStart.addEventListener("click", onButtonStart);                         //          -------------------------
+                                                                            //          |                       |  тут уже мой core, это методы - start, makeMove, waitMove, setMark, checkWin
+                                                                            //       ------------------------------
+                                                                            //       |                             | а тут уже самый низкий уровень - реализация, тут мои post, get, handleError, handleResponse и тд...
+function onButtonStart() {                                                  //                      
+    payload.name = $nameInp.value;                                          //       И именно в такой последовательности сверху я и реализовывал
+                                                                            //
+    setWaitState('Ожидание противника');
 
-    $nameBtn.addEventListener("click",onButtonSubmit);
-    $radio.forEach( radio => radio.addEventListener("change",onRadioChange));
-    $btnStart.addEventListener("click",onButtonStart);
+    start(payload.name)
+        .then(waitMove)
+        .catch(handleError)
+        .finally(() => removeWaitState('Ваш ход'));
 }
 
-function onButtonSubmit() {
-    let $name = document.querySelector('[data-component="name"');
-    let $nameBtn = document.querySelector('[data-component="btnSubmit"');
+function onCellClick(e) {
+    let index = $cells.indexOf(this);
 
-    $nameBtn.parentNode.removeChild($nameBtn);
-    $name.parentNode.removeChild($name);
-    createName($name.value);
+    setWaitState('Ожидание хода противника');
+
+    makeMove(index)
+        .then(waitMove)
+        .then(checkWin)
+        .catch(handleError)
+        .finally(() => removeWaitState('Ваш ход'));
 }
 
-function createName(name){
-    let $container = document.querySelector('[data-component="fieldUser"');
-    let $el = document.createElement("div");
-    GAME.name = name;
-
-    $el.id = "user-name";
-    $el.innerHTML = name;
-    $container.appendChild($el);
+function start(name) {
+    return get('/start?name=' + name)
+            .then(data => {
+                payload.id = data.id;
+                $container.classList.add('game-started');
+                return data.canMove === false; // true
+            });
 }
 
-function onRadioChange() {
-    changeGameInnerHTML();
+function makeMove(index) {
+    return post('/makeMove', Object.assign({move: index}, payload))
+            .then((data) => setMark('tic', data.move, data.win));
 }
 
-function changeGameInnerHTML(){
-    let $elements = document.querySelectorAll('td');
-    for (let i = 0; i < $elements.length; i++){
-        if ($elements[i].innerHTML == "X"){
-            $elements[i].innerHTML = "O"
-        } else if ($elements[i].innerHTML == "O") {
-            $elements[i].innerHTML = "X"
-        }
-    }
-}
-
-
-function onClick(event) {
-    if (!GAME.canMove){
+function waitMove(shouldWait) {
+    if (!shouldWait) {
         return;
     }
 
-    let $elements = document.querySelectorAll('td');
-    let $el = event.target;
-    let x = $el.cellIndex;
-    let y = $el.parentElement.rowIndex;
-    let position = x+y*3;
-
-    $elements[x+y*3].innerHTML = getYourMark();
-    $elements[x+y*3].removeEventListener("click",onClick);
-
-    createSpinner();
-    GAME.canMove = false;
-    makeTurnFetch($elements,position);
+    return post('/waitMove', payload)
+            .then((data) => setMark('tac', data.move));
 }
 
-function getYourMark(){
-    let $radio = document.querySelectorAll('[data-component="radioChoice"');
-    if ($radio[0].checked){
-        return $radio[0].value
-    } else {
-        return $radio[1].value
+function setMark(mark, move, win) {
+    $cells[move].classList.add(mark);
+
+    return !Number.isInteger(win);
+}
+
+function post(api, data) {
+    let headers = new Headers();
+    
+    headers.append('Content-Type', 'application/json');
+    
+    return fetch(GAME.website + api, {
+                method: 'POST' ,
+                headers: headers,
+                body: JSON.stringify(data)
+            })
+    .then(handleResponse);
+}
+
+function get(api) {
+    return fetch(GAME.website + api)
+            .then(handleResponse);
+}
+
+async function handleResponse(response) {
+    if (!response.ok) {
+        return Promise.reject('Some network error');
+    }
+
+    var json = await response.json();
+
+    if (!json.ok) {
+        return Promise.reject(json.reason);
+    }
+
+    return json.data;
+}
+
+function handleError(examinee) {
+    if (examinee.reason) {
+        alert(examinee.reason);
+    }
+    else if(examinee.status) {
+        alert(examinee);
+    }
+    else if(examinee instanceof Error) {
+        console.log(examinee);
     }
 }
 
-function getEnemyMark(){
-    let $radio = document.querySelectorAll('[data-component="radioChoice"');
-    if ($radio[0].checked){
-        return $radio[1].value
-    } else {
-        return $radio[0].value
-    }
+function setWaitState(message) {
+    $container.classList.add('waiting');
+    $message.innerHTML = message;
 }
 
-function onButtonStart() {
-    let $name = document.getElementById("user-name");
-    let $nameInput = document.querySelector('[ data-component="name"]');
-    if (!$name) {
-        alert("Submit your name!");
-        $nameInput.style.border = "2px solid red";
-        $nameInput.style.color = "red";
-        return false;
-    }
-
-    let $elements = document.querySelectorAll('td');
-    $elements.forEach( elem => elem.addEventListener("click",onClick));
-    GAME.canMove = false;
-    startFetch($elements);
-    GAME.canMove = true;
-    //block buttonStart
-    document.querySelector('[data-component = "btnStart"]').removeEventListener("click",onButtonStart);
-
+function removeWaitState(message) {
+    $container.classList.remove('waiting');
+    $message.innerHTML = message;
 }
 
-function startFetch(elements){
-    fetch(GAME.website + "/start/?name=" + GAME.name,{
-        method: 'GET',
-        headers: GAME.headers
-    })
-        .then(function(response){
-            if (response.status > 300){
-                setBanner("sorry, error number: ",response.status,". Try later.");
-                return Promise.reject()
-            }
-            if (response.ok){
-                return response.json();
-            }
-            else{
-                setBanner(response.reason);
-                return Promise.reject();
-            }
-        })
-        .then(function(json){
-            console.log(json);
-            GAME.id = json.data.id;
-
-            if (!json.data.canMove){
-                GAME.canMove = false;
-
-                setBanner("Ход опонента");
-                waitFetch(elements);
-                GAME.canMove = true;
-            }
-
-            setBanner("Ваш ход");
-        });
-}
-
-function waitFetch(elements){
-    fetch(GAME.website + "/waitMove",{
-        method: 'POST',
-        body: JSON.stringify({
-            name: GAME.name,
-            id: GAME.id
-        }),
-        headers: GAME.headers
-    })
-        .then((response) => response.json())
-        .then( function (response){
-                let move = response.data.move;
-                elements[move].innerHTML = getEnemyMark();
-                elements[move].removeEventListener( "click", onClick);
-                GAME.canMove = true;
-                setBanner("Ваш ход");
-                deleteSpinner();
-            }
-        )
+function checkWin() {
 
 }
-
-function makeTurnFetch(elements,pos){
-    fetch(GAME.website + "/makeMove",{
-        method: 'POST',
-        body: JSON.stringify({
-            name: GAME.name,
-            id:GAME.id,
-            move: pos
-        }),
-        headers: GAME.headers
-    })
-        .then((response) => response.json())
-        .then(function(response) {
-            if (response.data.win) {
-                setBanner("VICTORY!!!")
-                elements.forEach(elem => elem.removeEventListener("click",onClick));
-                return Promise.reject()
-            } else {
-                setBanner("Ход опонента")
-            }
-        })
-        .then(function(){
-            waitFetch(elements);
-        })
-
-}
-
-function createSpinner(){
-    let $container = document.querySelector('[data-component = "spinner"]');
-    for (let i = 0;i < 3; i++){
-        let $el = document.createElement("div");
-        $el.className = "bounce"+i+1;
-        $container.appendChild($el);
-    }
-}
-
-function deleteSpinner(){
-    document.querySelector('[data-component = "spinner"]').innerHTML = "" ;
-}
-
-function setBanner(str){
-    let info = document.querySelector('[ data-component="showTurn"]');
-    info.innerHTML = str;
-}
-

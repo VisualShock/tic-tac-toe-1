@@ -4,14 +4,12 @@
     <meta charset="UTF-8">
     <title>tic-tac-toe</title>
     <link rel="stylesheet" href="style.css">
-    <script src="script.js"></script>
 </head>
 <body>
-    <div class="container">
+    <div id="container" class="container">
         <div id="information">
             <div data-component="fieldUser" id="user">
-                <input data-component="name" type="text" value="enter your name" id="user-name-input">
-                <input data-component="btnSubmit" type="submit" id="btnUserSubmit">
+                <input class="user-name" data-component="name" type="text" placeholder="Введите имя и нажмите старт" id="user-name-input">
             </div>
             <div id="boxSide">
                 <input data-component="radioChoice" type="radio" id="choiceX" class="radioChoice" name="lol" value="X" checked>
@@ -27,19 +25,19 @@
 
         <table class="game">
             <tr>
-                <td></td>
-                <td></td>
-                <td></td>
+                <td data-component="cell"></td>
+                <td data-component="cell"></td>
+                <td data-component="cell"></td>
             </tr>
             <tr>
-                <td></td>
-                <td></td>
-                <td></td>
+                <td data-component="cell"></td>
+                <td data-component="cell"></td>
+                <td data-component="cell"></td>
             </tr>
             <tr>
-                <td></td>
-                <td></td>
-                <td></td>
+                <td data-component="cell"></td>
+                <td data-component="cell"></td>
+                <td data-component="cell"></td>
             </tr>
         </table>
 
@@ -47,6 +45,6 @@
     </div>
 
 
-
+    <script src="script.js"></script>
 </body>
 </html>
